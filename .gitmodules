@@ -1,0 +1,3 @@
+[submodule "vim-antlr"]
+	path = vim-antlr
+	url = https://github.com/dylon/vim-antlr
