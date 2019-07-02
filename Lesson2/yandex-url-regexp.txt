@@ -1,0 +1,10 @@
+https://yandex.ru/search/?text=mnbmnb&lr=213
+vim:
+(https?):\/\/(yandex\.ru)\/search\/?\?([^\&]*\&){-}(text\=([^\&]*))(\&[^\&]*)*
+js:
+(https?):\/\/(yandex\.ru)\/search\/?\?([^\&]*\&)*?(text\=([^\&]*))(\&[^\&]*)*
+groups:
+1 -> protocol
+2 -> host
+5 -> url-encoded search text
+s/\v(https?):\/\/(yandex\.ru)\/search\/?\?([^\&]*\&){-}(text\=([^\&]*))(\&[^\&]*)*/\5/

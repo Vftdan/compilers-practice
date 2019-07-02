@@ -1,0 +1,16 @@
+grammar FloatExpr;
+LPAR : '(';
+RPAR : ')';
+PLUS : '+';
+MINUS : '-';
+ASTERISK : '*';
+SLASH : '/';
+fragment DOT : '.';
+fragment DIGIT : [0-9];
+additive_op : PLUS | MINUS;
+multiplicative_op : ASTERISK | SLASH;
+operator : additive_op | multiplicative_op;
+WS : [ \t\r\n]+ -> skip;
+FLOAT : DOT DIGIT+ | DIGIT+ (DOT DIGIT*)?;
+expr : expr operator expr | additive_op expr | LPAR expr RPAR | FLOAT;
+lang : expr EOF;
