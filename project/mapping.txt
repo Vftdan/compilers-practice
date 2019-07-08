@@ -1,0 +1,8 @@
+Reverse rules order
+A : B C* (D|E)* F;	syn region ftA matchgroup=ftAB start=Bptn matchgroup=ftAF end=Fptn contains=ftC,ftD,ftE
+A : B | C | D;	syn cluster ftA contains=ftB,ftC,ftD
+... : B (C|D);	syn match ftB ... nextgroup=ftC,ftD
+[ \t] -> skip	Adds skipwhite to nextgroup
+[\r\n] -> skip	Adds skipnl, skipempty to nextgroup (subsequent in antlr file)
+A : A C B | B;	Same as `A : B+` `ftB ... nextgroup=...,ftC`, `ftC ... nextgroup=...,ftB`, `cluster ftA contains=ftB,ftC`
+A : 'qwe' | 'asd';	`syn keyword ftA 'qwe' 'asd'` if not banned, `syn match ftA /\Vqwe\|asd/` otherwise
