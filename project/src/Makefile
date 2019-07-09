@@ -5,6 +5,7 @@ java : clean
 	antlr4 ANTLRv4Parser.g4 -o ../out
 	if ls *.java 2> /dev/null; then cp *.java ../out; fi
 clean :
+	mkdir -p ../out
 	rm ../out/* 2> /dev/null || true
 tree :
 	cd ../out && grun ANTLRv4Parser grammarSpec -tree && cd $$OLDPWD
