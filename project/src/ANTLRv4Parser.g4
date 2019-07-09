@@ -41,6 +41,33 @@ parser grammar ANTLRv4Parser;
 
 
 options { tokenVocab = ANTLRv4Lexer; }
+
+@parser::header {
+import java.util.*;
+import java.io.*;
+}
+
+@parser::members {
+	static final List<String> rulesOrder = new ArrayList<String>();
+	
+	public static void main(String[] args) {
+		try {
+			CharStream streamInput = CharStreams.fromFileName("/dev/stdin");
+			TokenSource lexerAntlr = new ANTLRv4Lexer(streamInput);
+			TokenStream flowTokens = new CommonTokenStream(lexerAntlr);
+			ANTLRv4Parser parser = new ANTLRv4Parser(flowTokens);
+			
+			parser.grammarSpec();
+			
+			for(String ident: rulesOrder) {
+				System.out.println(ident);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+}
+
 // The main entry point for parsing a v4 grammar.
 grammarSpec
    : DOC_COMMENT* grammarDecl prequelConstruct* rules modeSpec* EOF
@@ -132,16 +159,16 @@ modeSpec
    ;
 
 rules
-   : ruleSpec*
+   : (ruleSpec {rulesOrder.add($ruleSpec.identName);})*
    ;
 
-ruleSpec
-   : parserRuleSpec
-   | lexerRuleSpec
+ruleSpec returns [String identName]
+   : parserRuleSpec {$identName = $parserRuleSpec.identName;}
+   | lexerRuleSpec {$identName = $lexerRuleSpec.identName;}
    ;
 
-parserRuleSpec
-   : DOC_COMMENT* ruleModifiers? RULE_REF argActionBlock? ruleReturns? throwsSpec? localsSpec? rulePrequel* COLON ruleBlock SEMI exceptionGroup
+parserRuleSpec returns [String identName]
+   : DOC_COMMENT* ruleModifiers? RULE_REF {$identName = $RULE_REF.text;} argActionBlock? ruleReturns? throwsSpec? localsSpec? rulePrequel* COLON ruleBlock SEMI exceptionGroup
    ;
 
 exceptionGroup
@@ -210,8 +237,8 @@ labeledAlt
    // --------------------
    // Lexer rules
 
-lexerRuleSpec
-   : DOC_COMMENT* FRAGMENT? TOKEN_REF COLON lexerRuleBlock SEMI
+lexerRuleSpec returns [String identName]
+   : DOC_COMMENT* FRAGMENT? TOKEN_REF {$identName = $TOKEN_REF.text;} COLON lexerRuleBlock SEMI
    ;
 
 lexerRuleBlock
