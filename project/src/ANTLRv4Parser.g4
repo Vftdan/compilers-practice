@@ -50,6 +50,7 @@ import java.io.*;
 @parser::members {
 	static final List<String> rulesOrder = new ArrayList<String>();
 	static final Set<String> fragmentTokens = new HashSet<String>();
+	static final Map<String, List<String>> nextItems = new HashMap<String, List<String>>(); 
 	
 	public static void main(String[] args) {
 		try {
@@ -257,38 +258,38 @@ lexerRuleSpec returns [String identName]
    : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock SEMI
    ;
 
-lexerRuleBlock
-   : lexerAltList
+lexerRuleBlock returns [String pattern]
+   : lexerAltList {$pattern = "\\v" + $lexerAltList.pattern;}
    ;
 
-lexerAltList
-   : lexerAlt (OR lexerAlt)*
+lexerAltList returns [String pattern]
+   : a=lexerAlt {$pattern = $a.pattern;} (OR b=lexerAlt {$pattern += "|" + $b.pattern;})*
    ;
 
-lexerAlt
-   : lexerElements lexerCommands?
-   |
+lexerAlt returns [String pattern]
+   : lexerElements {$pattern = $lexerElements.pattern;} lexerCommands?
+   | {$pattern = "";}
    // explicitly allow empty alts
    ;
 
-lexerElements
-   : lexerElement+
+lexerElements returns [String pattern]
+   : {$pattern = "";} (lexerElement {$pattern += $lexerElement.pattern;})+
    ;
 
-lexerElement
-   : labeledLexerElement ebnfSuffix?
-   | lexerAtom ebnfSuffix?
-   | lexerBlock ebnfSuffix?
-   | actionBlock QUESTION?
+lexerElement returns [String pattern]
+   : labeledLexerElement {$pattern = $labeledLexerElement.pattern;} (ebnfSuffix {$pattern += $ebnfSuffix.pattern;})?
+   | lexerAtom {$pattern = $lexerAtom.pattern;} (ebnfSuffix {$pattern += $ebnfSuffix.pattern;})?
+   | lexerBlock {$pattern = $lexerBlock.pattern;} (ebnfSuffix {$pattern += $ebnfSuffix.pattern;})?
+   | actionBlock QUESTION? {$pattern = "";}
    ;
    // but preds can be anywhere
 
-labeledLexerElement
-   : identifier (ASSIGN | PLUS_ASSIGN) (lexerAtom | lexerBlock)
+labeledLexerElement returns [String pattern]
+   : identifier (ASSIGN | PLUS_ASSIGN) (lexerAtom {$pattern = $lexerAtom.pattern;} | lexerBlock {$pattern = $lexerBlock.pattern;})
    ;
 
-lexerBlock
-   : LPAREN lexerAltList RPAREN
+lexerBlock returns [String pattern]
+   : LPAREN lexerAltList RPAREN {$pattern = "(" + $lexerAltList.pattern + ")";}
    ;
    // E.g., channel(HIDDEN), skip, more, mode(INSIDE), push(INSIDE), pop
 
@@ -344,18 +345,19 @@ blockSuffix
    : ebnfSuffix
    ;
 
-ebnfSuffix
-   : QUESTION QUESTION?
-   | STAR QUESTION?
-   | PLUS QUESTION?
+ebnfSuffix returns [String pattern]
+   : {String minCnt = "", maxCnt = ""; boolean isLazy = false;} (QUESTION {minCnt = "0"; maxCnt = "1";} (QUESTION {isLazy = true;})?
+   | STAR {minCnt = "0";} (QUESTION {isLazy = true;})?
+   | PLUS {minCnt = "1";} (QUESTION {isLazy = true;})?)
+   {$pattern = "{" + (isLazy ? "-" : "") + minCnt + "," + maxCnt + "}"}
    ;
 
-lexerAtom
-   : characterRange
-   | terminal
-   | notSet
-   | LEXER_CHAR_SET
-   | DOT elementOptions?
+lexerAtom returns [String pattern]
+   : characterRange {$pattern = $characterRange.pattern;}
+   | terminal {$pattern = $terminal.pattern;}
+   | notSet {$pattern = $notSet.pattern;}
+   | LEXER_CHAR_SET {$pattern = $LEXER_CHAR_SET.pattern;}
+   | DOT {$pattern = "\\_.";} (elementOptions {$pattern += $elementOptions.pattern;})?
    ;
 
 atom
@@ -367,20 +369,20 @@ atom
    // --------------------
    // Inverted element set
 
-notSet
-   : NOT setElement
-   | NOT blockSet
+notSet returns [String pattern]
+   : NOT setElement {$pattern = invertSetPattern($setElement.pattern);}
+   | NOT blockSet {$pattern = invertSetPattern($blockSet.bracketedPattern);}
    ;
 
-blockSet
-   : LPAREN setElement (OR setElement)* RPAREN
+blockSet returns [String pattern, String bracketedPattern]
+   : LPAREN setElement {$bracketedPattern = "[" + $setElement.pattern; $pattern = "(" + $setElement.pattern;} (OR setElement {$bracketedPattern += $setElement.pattern; $pattern += "|" + $setElement.pattern;})* {$bracketedPattern += "]"; $pattern += ")";} RPAREN
    ;
 
-setElement
-   : TOKEN_REF elementOptions?
-   | STRING_LITERAL elementOptions?
-   | characterRange
-   | LEXER_CHAR_SET
+setElement returns [String pattern]
+   : TOKEN_REF {$pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text);} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | characterRange {$pattern = unpackBrackets($characterRange.pattern);}
+   | LEXER_CHAR_SET {$pattern = parseLexerCharSet($LEXER_CHAR_SET.text);}
    ;
    // -------------
    // Grammar Block
@@ -397,13 +399,13 @@ ruleref
    // ---------------
    // Character Range
 
-characterRange
-   : STRING_LITERAL RANGE STRING_LITERAL
+characterRange returns [String pattern]
+   : a=STRING_LITERAL RANGE b=STRING_LITERAL {$pattern = "[" + stringLiteralToPattern($a.text) + "-" stringLiteralToPattern($b.text) + "]";}
    ;
 
-terminal
-   : TOKEN_REF elementOptions?
-   | STRING_LITERAL elementOptions?
+terminal returns [String pattern]
+   : TOKEN_REF {$pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text);} (elementOptions {$pattern += $elementOptions.pattern;})?
    ;
    // Terminals may be adorned with certain options when
    // reference in the grammar: TOK<,,,>
