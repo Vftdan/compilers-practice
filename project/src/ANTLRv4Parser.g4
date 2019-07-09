@@ -49,6 +49,7 @@ import java.io.*;
 
 @parser::members {
 	static final List<String> rulesOrder = new ArrayList<String>();
+	static final Set<String> fragmentTokens = new HashSet<String>();
 	
 	public static void main(String[] args) {
 		try {
@@ -60,11 +61,26 @@ import java.io.*;
 			parser.grammarSpec();
 			
 			for(String ident: rulesOrder) {
+				if(identifierIsLexer(ident) && tokenIsFragment(ident))
+					System.out.print("fragment ");
 				System.out.println(ident);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static boolean identifierIsLexer(String ident) {
+		char c = ident.charAt(0);
+		return (c >= 'A') && (c <= 'Z');
+	}
+	
+	public static void tokenSetFragment(String ident) {
+		fragmentTokens.add(ident);
+	}
+	
+	public static boolean tokenIsFragment(String ident) {
+		return fragmentTokens.contains(ident);
 	}
 }
 
@@ -238,7 +254,7 @@ labeledAlt
    // Lexer rules
 
 lexerRuleSpec returns [String identName]
-   : DOC_COMMENT* FRAGMENT? TOKEN_REF {$identName = $TOKEN_REF.text;} COLON lexerRuleBlock SEMI
+   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock SEMI
    ;
 
 lexerRuleBlock
