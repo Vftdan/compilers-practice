@@ -51,6 +51,7 @@ import java.io.*;
 	static final List<String> rulesOrder = new ArrayList<String>();
 	static final Set<String> fragmentTokens = new HashSet<String>();
 	static final Map<String, List<String>> nextItems = new HashMap<String, List<String>>(); 
+	static final Map<String, String> lexerVimPatterns = new HashMap<String, String>(); 
 	
 	public static void main(String[] args) {
 		try {
@@ -61,14 +62,23 @@ import java.io.*;
 			
 			parser.grammarSpec();
 			
+			DependentRegexpResolver resolver = new DependentRegexpResolver(lexerVimPatterns);
+			resolver.resolve();
+			
 			for(String ident: rulesOrder) {
 				if(identifierIsLexer(ident) && tokenIsFragment(ident))
 					System.out.print("fragment ");
 				System.out.println(ident);
+				if(identifierIsLexer(ident))
+					System.out.println(resolver.resolved.get(ident));
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static void setPattern(String ident, String ptn) {
+		lexerVimPatterns.put(ident, ptn);
 	}
 	
 	public static boolean identifierIsLexer(String ident) {
@@ -82,6 +92,71 @@ import java.io.*;
 	
 	public static boolean tokenIsFragment(String ident) {
 		return fragmentTokens.contains(ident);
+	}
+	
+	static boolean isHexDigit(char c) {
+		return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+	}
+	
+	public static String stringLiteralToPattern(String lit) {
+		lit = lit.substring(1, lit.length() - 1);
+		StringBuilder result = new StringBuilder();
+		for(int i = 0; i < lit.length(); i++) {
+			char c = lit.charAt(i);
+			if(c == '\\') {
+				char next = lit.charAt(i + 1);
+				switch(next) {
+					case 'u':
+						result.append("%\\u");
+						i++;
+						break;
+					case 'f':
+						result.append("%\\x0c");
+						i++;
+						break;
+					case 'b':
+					case 't':
+					case 'n':
+					case 'r':
+						result.append("\\");
+						result.append(next);
+						i++;
+						break;
+					default:
+						result.append(escapeRegexpChar(next));
+						i++;
+						break;
+				}
+			} else {
+				result.append(escapeRegexpChar(c));
+			}
+		}
+		return result.toString();
+	}
+	
+	public static String unpackBrackets(String expr) {
+		if(expr.charAt(0) != '[' || expr.charAt(expr.length() - 1) != ']')
+			return expr;
+		return expr.substring(1, expr.length() - 1);
+	}
+	
+	public static String invertSetPattern(String expr) {
+		expr = unpackBrackets(expr);
+		if(expr.charAt(0) == '^') {
+			return "[" + expr.substring(1) + "]";
+		} else {
+			return "[^" + expr + "]";
+		}
+	}
+	
+	public static String parseLexerCharSet(String expr) {
+		return expr; //TODO
+	}
+	
+	public static String escapeRegexpChar(char ch) {
+		if((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_')
+			return "" + ch;
+		return "\\" + ch;
 	}
 }
 
@@ -255,11 +330,11 @@ labeledAlt
    // Lexer rules
 
 lexerRuleSpec returns [String identName]
-   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock SEMI
+   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock {setPattern($identName, $lexerRuleBlock.pattern);} SEMI
    ;
 
 lexerRuleBlock returns [String pattern]
-   : lexerAltList {$pattern = "\\v" + $lexerAltList.pattern;}
+   : lexerAltList {$pattern = $lexerAltList.pattern;}
    ;
 
 lexerAltList returns [String pattern]
@@ -349,14 +424,14 @@ ebnfSuffix returns [String pattern]
    : {String minCnt = "", maxCnt = ""; boolean isLazy = false;} (QUESTION {minCnt = "0"; maxCnt = "1";} (QUESTION {isLazy = true;})?
    | STAR {minCnt = "0";} (QUESTION {isLazy = true;})?
    | PLUS {minCnt = "1";} (QUESTION {isLazy = true;})?)
-   {$pattern = "{" + (isLazy ? "-" : "") + minCnt + "," + maxCnt + "}"}
+   {$pattern = "{" + (isLazy ? "-" : "") + minCnt + "," + maxCnt + "}";}
    ;
 
 lexerAtom returns [String pattern]
    : characterRange {$pattern = $characterRange.pattern;}
    | terminal {$pattern = $terminal.pattern;}
    | notSet {$pattern = $notSet.pattern;}
-   | LEXER_CHAR_SET {$pattern = $LEXER_CHAR_SET.pattern;}
+   | LEXER_CHAR_SET {$pattern = parseLexerCharSet($LEXER_CHAR_SET.text);}
    | DOT {$pattern = "\\_.";} (elementOptions {$pattern += $elementOptions.pattern;})?
    ;
 
@@ -400,7 +475,7 @@ ruleref
    // Character Range
 
 characterRange returns [String pattern]
-   : a=STRING_LITERAL RANGE b=STRING_LITERAL {$pattern = "[" + stringLiteralToPattern($a.text) + "-" stringLiteralToPattern($b.text) + "]";}
+   : a=STRING_LITERAL RANGE b=STRING_LITERAL {$pattern = "[" + stringLiteralToPattern($a.text) + "-" + stringLiteralToPattern($b.text) + "]";}
    ;
 
 terminal returns [String pattern]
@@ -410,8 +485,8 @@ terminal returns [String pattern]
    // Terminals may be adorned with certain options when
    // reference in the grammar: TOK<,,,>
 
-elementOptions
-   : LT elementOption (COMMA elementOption)* GT
+elementOptions returns [String pattern]
+   : LT elementOption (COMMA elementOption)* GT {$pattern = "";}
    ;
 
 elementOption

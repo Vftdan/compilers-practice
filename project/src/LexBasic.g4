@@ -68,17 +68,8 @@ fragment LineComment
    // Escapes
    // Any kind of escaped character that we can embed within ANTLR literal strings.
 
-fragment EscSeq returns [String pattern]
-   : Esc (a=[btnfr"'\\] {
-			String aText = $a.text;
-			switch(aText.charAt(0)) {
-				case 'f':
-					$pattern = "%\\x0c";
-					break;
-				default:
-					$pattern = "\\" + aText;
-			}
-}| UnicodeEsc {$pattern = "%" + $UnicodeEsc.text;} | b=. {$pattern = escapeRegexpChar($b.text);} | EOF {$pattern = "\\";})
+fragment EscSeq
+   : Esc ([btnfr"'\\] | UnicodeEsc | . | EOF)
    ;
 
 fragment EscAny
@@ -117,8 +108,8 @@ fragment CharLiteral
    : SQuote (EscSeq | ~ ['\r\n\\]) SQuote
    ;
 
-fragment SQuoteLiteral returns [String pattern]
-   : SQuote {$pattern = "";} (EscSeq {$pattern += $EscSeq.pattern;} | a=(~ ['\r\n\\]) {$pattern += escapeRegexpChar($a.text);})* SQuote
+fragment SQuoteLiteral
+   : SQuote (EscSeq | a=(~ ['\r\n\\]))* SQuote
    ;
 
 fragment DQuoteLiteral
