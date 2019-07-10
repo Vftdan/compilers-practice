@@ -102,7 +102,7 @@ import java.io.*;
 		return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 	}
 	
-	public static String stringLiteralToPattern(String lit) {
+	public static String stringLiteralToPattern(String lit, boolean insideBrackets) {
 		lit = lit.substring(1, lit.length() - 1);
 		StringBuilder result = new StringBuilder();
 		for(int i = 0; i < lit.length(); i++) {
@@ -111,11 +111,15 @@ import java.io.*;
 				char next = lit.charAt(i + 1);
 				switch(next) {
 					case 'u':
-						result.append("%\\u");
+						if(!insideBrackets)
+							result.append("%");
+						result.append("\\u");
 						i++;
 						break;
 					case 'f':
-						result.append("%\\x0c");
+						if(!insideBrackets)
+							result.append("%");
+						result.append("\\x0c");
 						i++;
 						break;
 					case 'b':
@@ -162,14 +166,11 @@ import java.io.*;
 			if(c == '\\') {
 				char next = expr.charAt(i + 1);
 				switch(next) {
-					case 'u':
-						result.append("%\\u");
-						i++;
-						break;
 					case 'f':
-						result.append("%\\x0c");
+						result.append("\\x0c");
 						i++;
 						break;
+					case 'u':
 					case 'b':
 					case 't':
 					case 'n':
@@ -491,14 +492,14 @@ notSet returns [String pattern]
    ;
 
 blockSet returns [String pattern, String bracketedPattern]
-   : LPAREN setElement {$bracketedPattern = "[" + $setElement.pattern; $pattern = "(" + $setElement.pattern;} (OR setElement {$bracketedPattern += $setElement.pattern; $pattern += "|" + $setElement.pattern;})* {$bracketedPattern += "]"; $pattern += ")";} RPAREN
+   : LPAREN setElement {$bracketedPattern = "[" + $setElement.bracketedPattern; $pattern = "(" + $setElement.pattern;} (OR setElement {$bracketedPattern += $setElement.bracketedPattern; $pattern += "|" + $setElement.pattern;})* {$bracketedPattern += "]"; $pattern += ")";} RPAREN
    ;
 
-setElement returns [String pattern]
-   : TOKEN_REF {$pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
-   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text);} (elementOptions {$pattern += $elementOptions.pattern;})?
-   | characterRange {$pattern = unpackBrackets($characterRange.pattern);}
-   | LEXER_CHAR_SET {$pattern = parseLexerCharSet($LEXER_CHAR_SET.text);}
+setElement returns [String pattern, String bracketedPattern]
+   : TOKEN_REF {$bracketedPattern /*TODO*/ = $pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text, false); $bracketedPattern = stringLiteralToPattern($STRING_LITERAL.text, true);} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | characterRange {$bracketedPattern = unpackBrackets($pattern = $characterRange.pattern);}
+   | LEXER_CHAR_SET {$bracketedPattern = unpackBrackets($pattern = parseLexerCharSet($LEXER_CHAR_SET.text));}
    ;
    // -------------
    // Grammar Block
@@ -516,12 +517,12 @@ ruleref
    // Character Range
 
 characterRange returns [String pattern]
-   : a=STRING_LITERAL RANGE b=STRING_LITERAL {$pattern = "[" + stringLiteralToPattern($a.text) + "-" + stringLiteralToPattern($b.text) + "]";}
+   : a=STRING_LITERAL RANGE b=STRING_LITERAL {$pattern = "[" + stringLiteralToPattern($a.text, true) + "-" + stringLiteralToPattern($b.text, true) + "]";}
    ;
 
 terminal returns [String pattern]
    : TOKEN_REF {$pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
-   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text);} (elementOptions {$pattern += $elementOptions.pattern;})?
+   | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text, false);} (elementOptions {$pattern += $elementOptions.pattern;})?
    ;
    // Terminals may be adorned with certain options when
    // reference in the grammar: TOK<,,,>
