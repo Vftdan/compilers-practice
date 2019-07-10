@@ -60,10 +60,14 @@ import java.io.*;
 			TokenStream flowTokens = new CommonTokenStream(lexerAntlr);
 			ANTLRv4Parser parser = new ANTLRv4Parser(flowTokens);
 			
+			System.err.println("Started parser");
+			
 			parser.grammarSpec();
 			
 			DependentRegexpResolver resolver = new DependentRegexpResolver(lexerVimPatterns);
+			System.err.println("Started resolver");
 			resolver.resolve();
+			System.err.println("Ended resolver");
 			
 			for(String ident: rulesOrder) {
 				if(identifierIsLexer(ident) && tokenIsFragment(ident))

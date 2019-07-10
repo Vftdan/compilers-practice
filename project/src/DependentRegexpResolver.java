@@ -6,6 +6,7 @@ public class DependentRegexpResolver {
 	Map<String, String> initial;
 	static final Pattern substitutionPattern = Pattern.compile("(?<=(^|[^\\\\])(\\\\\\\\){0,128})\\/([A-Za-z0-9_]+)\\/");
 	static final Pattern backslash = Pattern.compile("\\\\");
+	static final Pattern dollar = Pattern.compile("\\$");
 	static final String substitutionPatternPrefix = "(?<=(^|[^\\\\])(\\\\\\\\){0,128})\\/";
 	static final String substitutionPatternPostfix = "\\/";
 	
@@ -18,8 +19,8 @@ public class DependentRegexpResolver {
 			this.initial = initial;
 	}
 	
-	static String duplicateBackslashes(String orig) {
-		return backslash.matcher(orig).replaceAll("\\\\\\\\");
+	static String escapeSubstitutable(String orig) {
+		return dollar.matcher(backslash.matcher(orig).replaceAll("\\\\\\\\")).replaceAll("\\\\\\$");
 	}
 	
 	public void resolve() {
@@ -47,7 +48,7 @@ public class DependentRegexpResolver {
 					for(String otherIdent: new HashSet<String>(unresolved.keySet())) {
 						if(dependencies.get(otherIdent).contains(ident)) {
 							dependencies.get(otherIdent).remove(ident);
-							unresolved.put(otherIdent, ptn.matcher(unresolved.get(otherIdent)).replaceAll("(" + duplicateBackslashes(resolved.get(ident)) + ")"));
+							unresolved.put(otherIdent, ptn.matcher(unresolved.get(otherIdent)).replaceAll("(" + escapeSubstitutable(resolved.get(ident)) + ")"));
 						}
 					}
 				}
