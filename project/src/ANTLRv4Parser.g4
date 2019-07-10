@@ -150,7 +150,44 @@ import java.io.*;
 	}
 	
 	public static String parseLexerCharSet(String expr) {
-		return expr; //TODO
+		expr = expr.substring(1, expr.length() - 1);
+		StringBuilder result = new StringBuilder();
+		result.append("[");
+		for(int i = 0; i < expr.length(); i++) {
+			char c = expr.charAt(i);
+			if(c == '\\') {
+				char next = expr.charAt(i + 1);
+				switch(next) {
+					case 'u':
+						result.append("%\\u");
+						i++;
+						break;
+					case 'f':
+						result.append("%\\x0c");
+						i++;
+						break;
+					case 'b':
+					case 't':
+					case 'n':
+					case 'r':
+						result.append("\\");
+						result.append(next);
+						i++;
+						break;
+					default:
+						result.append(escapeRegexpChar(next));
+						i++;
+						break;
+				}
+			} else {
+				if(c == '-')
+					result.append("-");
+				else
+					result.append(escapeRegexpChar(c));
+			}
+		}
+		result.append("]");
+		return result.toString();
 	}
 	
 	public static String escapeRegexpChar(char ch) {
