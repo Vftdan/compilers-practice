@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.stream.*;
 import java.util.regex.*;
 
 public class DependentRegexpResolver {
@@ -9,8 +10,13 @@ public class DependentRegexpResolver {
 	static final Pattern dollar = Pattern.compile("\\$");
 	static final String substitutionPatternPrefix = "(?<=(^|[^\\\\])(\\\\\\\\){0,128})\\/";
 	static final String substitutionPatternPostfix = "\\/";
+	private static final Set<String> reservedTokens = new HashSet<String>() {{
+		add("EOF");
+	}};
+	static final Pattern reservedPattern = Pattern.compile(substitutionPatternPrefix + "(" + String.join("|", reservedTokens) + ")" + substitutionPatternPostfix);
 	
 	private Map<String, Set<String>> dependencies;
+	public Map<String, Set<String>> contains;
 	
 	public DependentRegexpResolver(Map<String, String> initial) {
 		if(initial == null)
@@ -24,8 +30,12 @@ public class DependentRegexpResolver {
 	}
 	
 	public void resolve() {
-		Map<String, String> unresolved = new HashMap<String, String>(initial);
+		Map<String, String> unresolved = new HashMap<String, String>();
+		for(String ident: initial.keySet()) {
+			unresolved.put(ident, reservedPattern.matcher(initial.get(ident)).replaceAll(""));
+		}
 		dependencies = new HashMap<String, Set<String>>();
+		contains = new HashMap<String, Set<String>>();
 		for(String ident: unresolved.keySet()) {
 			Set<String> curDep;
 			dependencies.put(ident, curDep = new HashSet<String>());
@@ -35,6 +45,7 @@ public class DependentRegexpResolver {
 				//System.out.print(" " + matcher.group(3));
 				curDep.add(matcher.group(3));
 			}
+			contains.put(ident, new HashSet<String>(curDep));
 			//System.out.println("");
 		}
 		while(unresolved.size() > 0) {
@@ -42,7 +53,7 @@ public class DependentRegexpResolver {
 			for(String ident: new HashSet<String>(unresolved.keySet())) {
 				if(dependencies.get(ident).size() == 0) {
 					changed = true;
-					resolved.put(ident, unresolved.get(ident));
+					resolved.put(ident, unresolved.get(ident) == null ? "" : unresolved.get(ident));
 					unresolved.remove(ident);
 					Pattern ptn = Pattern.compile(substitutionPatternPrefix + ident + substitutionPatternPostfix);
 					for(String otherIdent: new HashSet<String>(unresolved.keySet())) {

@@ -44,6 +44,7 @@ options { tokenVocab = ANTLRv4Lexer; }
 
 @parser::header {
 import java.util.*;
+import java.util.stream.*;
 import java.io.*;
 }
 
@@ -52,6 +53,9 @@ import java.io.*;
 	static final Set<String> fragmentTokens = new HashSet<String>();
 	static final Map<String, List<String>> nextItems = new HashMap<String, List<String>>(); 
 	static final Map<String, String> lexerVimPatterns = new HashMap<String, String>(); 
+	static final Map<String, String> antlrToVimNames = new HashMap<String, String>(); 
+	static final Set<String> usedVimNames = new HashSet<String>();
+	static String filetype = "ft";
 	
 	public static void main(String[] args) {
 		try {
@@ -69,16 +73,43 @@ import java.io.*;
 			resolver.resolve();
 			System.err.println("Ended resolver");
 			
-			for(String ident: rulesOrder) {
+			/*for(String ident: rulesOrder) {
 				if(identifierIsLexer(ident) && tokenIsFragment(ident))
 					System.out.print("fragment ");
 				System.out.println(ident);
 				if(identifierIsLexer(ident))
 					System.out.println(resolver.resolved.get(ident));
+			}*/
+			for(int i = rulesOrder.size() - 1; i >= 0; i--) {
+				String ident = rulesOrder.get(i);
+				if(identifierIsLexer(ident)/* && !tokenIsFragment(ident)*/) {
+					System.out.print("syn match " + getVimName(ident) + " /\\v" + resolver.resolved.get(ident) + "/");
+					if(tokenIsFragment(ident)) {
+						System.out.print(" contained");
+					}
+					Set<String> contains = resolver.contains.get(ident).stream().map(ANTLRv4Parser::getVimName).collect(Collectors.toSet());
+					if(contains.size() > 0) {
+						System.out.print(" contains=" + String.join(",", contains));
+					}
+					System.out.println("");
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static String getVimName(String ident) {
+		if(antlrToVimNames.containsKey(ident))
+			return antlrToVimNames.get(ident);
+		String vimName = filetype + ident;
+		int i = 0;
+		while(usedVimNames.contains(vimName.toLowerCase())) {
+			vimName = filetype + ident + "__" + (i++);
+		}
+		antlrToVimNames.put(ident, vimName);
+		usedVimNames.add(vimName.toLowerCase());
+		return vimName;
 	}
 	
 	public static void setPattern(String ident, String ptn) {
