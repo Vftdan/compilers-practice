@@ -82,8 +82,8 @@ import java.io.*;
 			}*/
 			for(int i = rulesOrder.size() - 1; i >= 0; i--) {
 				String ident = rulesOrder.get(i);
-				if(identifierIsLexer(ident)/* && !tokenIsFragment(ident)*/) {
-					System.out.print("syn match " + getVimName(ident) + " /\\v" + resolver.resolved.get(ident) + "/");
+				if(identifierIsLexer(ident)) {
+					System.out.print("syn match " + getVimName(ident) + " /\\v" + postprocessVimPattern(resolver.resolved.get(ident)) + "/");
 					if(tokenIsFragment(ident)) {
 						System.out.print(" contained");
 					}
@@ -97,6 +97,41 @@ import java.io.*;
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static String postprocessVimPattern(String ptn) {
+		int brackdepth = 0;
+		StringBuilder result = new StringBuilder();
+		for(int i = 0; i < ptn.length(); i++) {
+			final char c = ptn.charAt(i);
+			if(c == '\\') {
+				i++;
+				result.append('\\');
+				result.append(ptn.charAt(i));
+				continue;
+			}
+			switch(c) {
+				case '[':
+					if(brackdepth++ == 0)
+						result.append('[');
+					break;
+				case ']':
+					if(brackdepth-- == 1)
+						result.append(']');
+					break;
+				case '|':
+				case '%':
+				case '(':
+				case ')':
+					if(brackdepth == 0)
+						result.append(c);
+					break;
+				default:
+					result.append(c); //TODO: handling '^' and '.'
+					break;
+			}
+		}
+		return result.toString();
 	}
 	
 	public static String getVimName(String ident) {
@@ -437,7 +472,7 @@ labeledLexerElement returns [String pattern]
    ;
 
 lexerBlock returns [String pattern]
-   : LPAREN lexerAltList RPAREN {$pattern = "(" + $lexerAltList.pattern + ")";}
+   : LPAREN lexerAltList RPAREN {$pattern = "%(" + $lexerAltList.pattern + ")";}
    ;
    // E.g., channel(HIDDEN), skip, more, mode(INSIDE), push(INSIDE), pop
 
@@ -523,11 +558,11 @@ notSet returns [String pattern]
    ;
 
 blockSet returns [String pattern, String bracketedPattern]
-   : LPAREN setElement {$bracketedPattern = "[" + $setElement.bracketedPattern; $pattern = "(" + $setElement.pattern;} (OR setElement {$bracketedPattern += $setElement.bracketedPattern; $pattern += "|" + $setElement.pattern;})* {$bracketedPattern += "]"; $pattern += ")";} RPAREN
+   : LPAREN setElement {$bracketedPattern = "[" + $setElement.bracketedPattern; $pattern = "%(" + $setElement.pattern;} (OR setElement {$bracketedPattern += $setElement.bracketedPattern; $pattern += "|" + $setElement.pattern;})* {$bracketedPattern += "]"; $pattern += ")";} RPAREN
    ;
 
 setElement returns [String pattern, String bracketedPattern]
-   : TOKEN_REF {$bracketedPattern /*TODO*/ = $pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
+   : TOKEN_REF {$bracketedPattern = $pattern = "/" + $TOKEN_REF.text + "/";} (elementOptions {$pattern += $elementOptions.pattern;})?
    | STRING_LITERAL {$pattern = stringLiteralToPattern($STRING_LITERAL.text, false); $bracketedPattern = stringLiteralToPattern($STRING_LITERAL.text, true);} (elementOptions {$pattern += $elementOptions.pattern;})?
    | characterRange {$bracketedPattern = unpackBrackets($pattern = $characterRange.pattern);}
    | LEXER_CHAR_SET {$bracketedPattern = unpackBrackets($pattern = parseLexerCharSet($LEXER_CHAR_SET.text));}

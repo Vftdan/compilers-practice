@@ -59,7 +59,7 @@ public class DependentRegexpResolver {
 					for(String otherIdent: new HashSet<String>(unresolved.keySet())) {
 						if(dependencies.get(otherIdent).contains(ident)) {
 							dependencies.get(otherIdent).remove(ident);
-							unresolved.put(otherIdent, ptn.matcher(unresolved.get(otherIdent)).replaceAll("(" + escapeSubstitutable(resolved.get(ident)) + ")"));
+							unresolved.put(otherIdent, ptn.matcher(unresolved.get(otherIdent)).replaceAll("%(" + escapeSubstitutable(resolved.get(ident)) + ")"));
 						}
 					}
 				}
