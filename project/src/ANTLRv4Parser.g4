@@ -51,10 +51,15 @@ import java.io.*;
 @parser::members {
 	static final List<String> rulesOrder = new ArrayList<String>();
 	static final Set<String> fragmentTokens = new HashSet<String>();
-	static final Map<String, List<String>> nextItems = new HashMap<String, List<String>>(); 
+	//static final Map<String, List<String>> nextItems = new HashMap<String, List<String>>(); 
+	static final Map<String, ModeContainer> lexerModes = new HashMap<String, ModeContainer>(); 
+	static ModeContainer currentMode = null;
+	static final Set<String> tokensNotTopMode = new HashSet<String>();
+	static final Map<String, String> modeStarts = new HashMap<String, String>(); 
 	static final Map<String, String> lexerVimPatterns = new HashMap<String, String>(); 
 	static final Map<String, String> antlrToVimNames = new HashMap<String, String>(); 
 	static final Set<String> usedVimNames = new HashSet<String>();
+	static final Map<String, String> hiLinks = new HashMap<String, String>(); 
 	static String filetype = null;
 	static String grammarName = null;
 	
@@ -69,8 +74,8 @@ import java.io.*;
 			"\t-o, --output <directory>\toutput directory\n" +
 			"\t-\tread grammar from stdin\n" +
 			"\n" +
-			"Highlighting file structure:" +
-			"Two space-separated columns, left is antlr identifier, right is vim standart group or '@' + antlr identifier. If first character of the line is '#', it is treated as comment.";
+			"Highlighting file structure:\n" +
+			"Two space-separated columns, left is antlr identifier, right is vim standart group or '#' + antlr identifier. If first character of the line is '#', it is treated as comment.";
 		if(args.length == 0) {
 			System.err.println(help);
 		}
@@ -131,6 +136,29 @@ import java.io.*;
 			if(filetype == null)
 				filetype = grammarName.toLowerCase();
 			
+			if(highlightFilename != null) {
+				BufferedReader reader = new BufferedReader(new FileReader(highlightFilename));
+				String line;
+				while((line = reader.readLine()) != null) {
+					line = line.trim();
+					if(line.length() == 0 || line.charAt(0) == '#')
+						continue;
+					String[] cols = line.split("[\\s\\t]+");
+					switch(cols.length) {
+						case 0:
+							continue;
+						case 1:
+							hiLinks.put(cols[0], "");
+							break;
+						default:
+							hiLinks.put(cols[0], cols[1]);
+							break;
+					}
+				}
+			} else {
+				System.err.println("Highlighting filename not specified");
+			}
+			
 			System.setOut(new PrintStream(new File(outDir, filetype + ".vim")));
 			
 			DependentRegexpResolver resolver = new DependentRegexpResolver(lexerVimPatterns);
@@ -148,20 +176,95 @@ import java.io.*;
 			for(int i = rulesOrder.size() - 1; i >= 0; i--) {
 				String ident = rulesOrder.get(i);
 				if(identifierIsLexer(ident)) {
+					if(modeStarts.containsKey(ident)) {
+						ModeContainer mode = getModeContainer(modeStarts.get(ident));
+						if(mode.mainStartRule.equals(ident)) {
+							System.out.print("syn region " + getVimName(mode.getName()));
+							for(String startIdent: mode.startRules) {
+								System.out.print(" matchgroup=" + getVimName(startIdent) + " start=/\\v" + postprocessVimPattern(resolver.resolved.get(startIdent)) + "/");
+							}
+							for(String endIdent: mode.endRules) {
+								System.out.print(" matchgroup=" + getVimName(endIdent) + " end=/\\v" + postprocessVimPattern(resolver.resolved.get(endIdent)) + "/");
+							}
+							writeContainsEntry(mode.lexerRules);
+							if(!hiLinks.containsKey(mode.name)) {
+								System.out.print(" transparent");
+							}
+							System.out.println("");
+						}
+						continue;
+					}
+					
 					System.out.print("syn match " + getVimName(ident) + " /\\v" + postprocessVimPattern(resolver.resolved.get(ident)) + "/");
-					if(tokenIsFragment(ident)) {
+					if(tokenIsFragment(ident) || tokensNotTopMode.contains(ident)) {
 						System.out.print(" contained");
 					}
-					Set<String> contains = resolver.contains.get(ident).stream().map(ANTLRv4Parser::getVimName).collect(Collectors.toSet());
-					if(contains.size() > 0) {
-						System.out.print(" contains=" + String.join(",", contains));
+					writeContainsEntry(resolver.contains.get(ident));
+					if(!hiLinks.containsKey(ident)) {
+						System.out.print(" transparent");
 					}
 					System.out.println("");
 				}
 			}
+			System.out.println("");
+			for(String ident: hiLinks.keySet()) {
+				String value = hiLinks.get(ident);
+				if(value.length() == 0)
+					continue;
+				if(value.charAt(0) == '#') {
+					value = getVimName(value.substring(1));
+				}
+				System.out.println("hi def link " + getVimName(ident) + " " + value);
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static void writeContainsEntry(Collection<String> containedRules) {
+		Set<String> groups = containedRules.stream().map(ANTLRv4Parser::tryConverToMode).map(ANTLRv4Parser::getVimName).collect(Collectors.toSet());
+		if(groups.size() > 0) {
+			System.out.print(" contains=" + String.join(",", groups));
+		}
+	}
+	
+	public static String tryConverToMode(String ident) {
+		String mode = modeStarts.get(ident);
+		if(mode == null)
+			return ident;
+		return mode;
+	}
+	
+	public static void handleLexerCommand(String ident, String method, String... args) {
+		if(method.equals("pushMode")) {
+			if(args.length < 1) {
+				System.err.println("pushMode requires 1 argument in " + ident + "definition");
+				return;
+			}
+			ModeContainer mode = getModeContainer(args[0]);
+			mode.startRules.add(ident);
+			mode.mainStartRule = ident;
+			modeStarts.put(ident, args[0]);
+		}
+		if(method.equals("popMode")) {
+			ModeContainer mode = currentMode;
+			if(mode == null) {
+				System.err.println("popMode should be called inside mode definition in " + ident + "definition");
+				return;
+			}
+			mode.endRules.add(ident);
+		}
+	}
+	
+	public static void setCurrentMode(String modeName) {
+		currentMode = getModeContainer(modeName);
+	}
+	
+	public static ModeContainer getModeContainer(String modeName) {
+		if(!lexerModes.containsKey(modeName)) {
+			lexerModes.put(modeName, new ModeContainer(modeName));
+		}
+		return lexerModes.get(modeName);
 	}
 	
 	public static String postprocessVimPattern(String ptn) {
@@ -214,6 +317,10 @@ import java.io.*;
 	
 	public static void setPattern(String ident, String ptn) {
 		lexerVimPatterns.put(ident, ptn);
+		if(currentMode != null) {
+			currentMode.lexerRules.add(ident);
+			tokensNotTopMode.add(ident);
+		}
 	}
 	
 	public static boolean identifierIsLexer(String ident) {
@@ -420,7 +527,7 @@ argActionBlock
    ;
 
 modeSpec
-   : MODE identifier SEMI lexerRuleSpec*
+   : MODE identifier {setCurrentMode($identifier.text);} SEMI lexerRuleSpec*
    ;
 
 rules
@@ -503,19 +610,19 @@ labeledAlt
    // Lexer rules
 
 lexerRuleSpec returns [String identName]
-   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock {setPattern($identName, $lexerRuleBlock.pattern);} SEMI
+   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock[$identName] {setPattern($identName, $lexerRuleBlock.pattern);} SEMI
    ;
 
-lexerRuleBlock returns [String pattern]
-   : lexerAltList {$pattern = $lexerAltList.pattern;}
+lexerRuleBlock [String identName] returns [String pattern]
+   : lexerAltList[$identName] {$pattern = $lexerAltList.pattern;}
    ;
 
-lexerAltList returns [String pattern]
-   : a=lexerAlt {$pattern = $a.pattern;} (OR b=lexerAlt {$pattern += "|" + $b.pattern;})*
+lexerAltList [String identName] returns [String pattern]
+   : a=lexerAlt[$identName] {$pattern = $a.pattern;} (OR b=lexerAlt[$identName] {$pattern += "|" + $b.pattern;})*
    ;
 
-lexerAlt returns [String pattern]
-   : lexerElements {$pattern = $lexerElements.pattern;} lexerCommands?
+lexerAlt [String identName] returns [String pattern]
+   : lexerElements {$pattern = $lexerElements.pattern;} lexerCommands[$identName]?
    | {$pattern = "";}
    // explicitly allow empty alts
    ;
@@ -537,17 +644,17 @@ labeledLexerElement returns [String pattern]
    ;
 
 lexerBlock returns [String pattern]
-   : LPAREN lexerAltList RPAREN {$pattern = "%(" + $lexerAltList.pattern + ")";}
+   : LPAREN lexerAltList[null] RPAREN {$pattern = "%(" + $lexerAltList.pattern + ")";}
    ;
    // E.g., channel(HIDDEN), skip, more, mode(INSIDE), push(INSIDE), pop
 
-lexerCommands
-   : RARROW lexerCommand (COMMA lexerCommand)*
+lexerCommands [String identName]
+   : RARROW lexerCommand[$identName] (COMMA lexerCommand[$identName])*
    ;
 
-lexerCommand
-   : lexerCommandName LPAREN lexerCommandExpr RPAREN
-   | lexerCommandName
+lexerCommand [String identName]
+   : lexerCommandName LPAREN lexerCommandExpr RPAREN {handleLexerCommand($identName, $lexerCommandName.text, $lexerCommandExpr.text);}
+   | lexerCommandName {handleLexerCommand($identName, $lexerCommandName.text);}
    ;
 
 lexerCommandName
