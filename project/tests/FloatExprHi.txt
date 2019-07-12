@@ -1,0 +1,8 @@
+PLUS Operator
+MINUS Operator
+ASTERISK Operator
+SLASH Operator
+POW Operator
+FLOAT Constant
+LPAR Delimiter
+RPAR Delimiter

@@ -1,0 +1,12 @@
+LPAR Delimiter
+RPAR Delimiter
+SC Delimiter
+COLON Delimiter
+EXPR_STRING Constant
+EXPR_SET Constant
+FRAGMENT_KW Keyword
+GRAMMAR_KW Keyword
+ID Identifier
+INLINE_COMMENT Comment
+BLOCK_COMMENT Comment
+TILDE Operator
