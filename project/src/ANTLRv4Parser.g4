@@ -78,6 +78,7 @@ import java.io.*;
 			"Two space-separated columns, left is antlr identifier, right is vim standart group or '#' + antlr identifier. If first character of the line is '#', it is treated as comment.";
 		if(args.length == 0) {
 			System.err.println(help);
+			return;
 		}
 		boolean endOfOptions = false;
 		String outDir = ".";
@@ -101,7 +102,7 @@ import java.io.*;
 						return;
 					} else if(args[i].equals("--highlight") || parsingShortOpts && args[i].charAt(j) == 'H') {
 						highlightFilename = args[++newI];
-					} else if(args[i].equals("--highlight") || parsingShortOpts && args[i].charAt(j) == 'H') {
+					} else if(args[i].equals("--output") || parsingShortOpts && args[i].charAt(j) == 'o') {
 						outDir = args[++newI];
 					} else {
 						System.err.print("Unknown option: '");
