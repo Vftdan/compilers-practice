@@ -10,10 +10,9 @@ public class DependentRegexpResolver {
 	static final Pattern dollar = Pattern.compile("\\$");
 	static final String substitutionPatternPrefix = "(?<=(^|[^\\\\])(\\\\\\\\){0,128})\\/";
 	static final String substitutionPatternPostfix = "\\/";
-	private static final Set<String> reservedTokens = new HashSet<String>() {{
-		add("EOF");
+	private static final Map<String, String> reservedTokens = new HashMap<String, String>() {{
+		put("EOF", "%\\$");
 	}};
-	static final Pattern reservedPattern = Pattern.compile(substitutionPatternPrefix + "(" + String.join("|", reservedTokens) + ")" + substitutionPatternPostfix);
 	
 	private Map<String, Set<String>> dependencies;
 	public Map<String, Set<String>> contains;
@@ -31,8 +30,11 @@ public class DependentRegexpResolver {
 	
 	public void resolve() {
 		Map<String, String> unresolved = new HashMap<String, String>();
-		for(String ident: initial.keySet()) {
-			unresolved.put(ident, reservedPattern.matcher(initial.get(ident)).replaceAll(""));
+		for(String reservedToken: reservedTokens.keySet()) {
+			Pattern reservedPattern = Pattern.compile(substitutionPatternPrefix + reservedToken + substitutionPatternPostfix);
+			for(String ident: initial.keySet()) {
+				unresolved.put(ident, reservedPattern.matcher(initial.get(ident)).replaceAll(reservedTokens.get(reservedToken)));
+			}
 		}
 		dependencies = new HashMap<String, Set<String>>();
 		contains = new HashMap<String, Set<String>>();
