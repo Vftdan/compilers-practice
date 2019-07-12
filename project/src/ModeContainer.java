@@ -6,7 +6,6 @@ public class ModeContainer {
 	public final List<String> endRules = new ArrayList<String>();
 	public final List<String> startRules = new ArrayList<String>();
 	public String mainStartRule = null;
-	public boolean written = false;
 	
 	public String getName() {
 		return name;
