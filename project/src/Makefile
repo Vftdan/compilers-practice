@@ -12,5 +12,5 @@ tree :
 gui :
 	cd ../out && grun ANTLRv4 grammarSpec -gui && cd $$OLDPWD
 main :
-	cd ../out && java ANTLRv4Parser < ../../Lesson2-4/simple-antlr4/SimpleAntlr.g4 && cd $$OLDPWD
+	cd ../out && java ANTLRv4Parser ../src/LexBasic.g4 ../src/ANTLRv4Lexer.g4 -H ../highlight.txt -o .. -f antlr && cd $$OLDPWD
 .PHONY: java class clean tree gui main
