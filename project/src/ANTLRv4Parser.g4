@@ -532,7 +532,7 @@ modeSpec
    ;
 
 rules
-   : (ruleSpec {rulesOrder.add($ruleSpec.identName);})*
+   : ruleSpec*
    ;
 
 ruleSpec returns [String identName]
@@ -611,7 +611,7 @@ labeledAlt
    // Lexer rules
 
 lexerRuleSpec returns [String identName]
-   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock[$identName] {setPattern($identName, $lexerRuleBlock.pattern);} SEMI
+   : {boolean isFragment = false;} DOC_COMMENT* (FRAGMENT {isFragment = true;})? TOKEN_REF {$identName = $TOKEN_REF.text; if(isFragment) tokenSetFragment($TOKEN_REF.text);} COLON lexerRuleBlock[$identName] {setPattern($identName, $lexerRuleBlock.pattern); rulesOrder.add($identName);} SEMI
    ;
 
 lexerRuleBlock [String identName] returns [String pattern]
