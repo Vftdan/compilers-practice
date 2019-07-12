@@ -1,6 +1,12 @@
 COLON Delimiter
 SEMI Delimiter
-RARROW Delimiter
+RARROW Operator
+STAR Operator
+PLUS Operator
+QUESTION Operator
+NOT Operator
+OR Operator
+RANGE Operator
 LBRACE Delimiter
 RBRACE Delimiter
 LBrack Delimiter
