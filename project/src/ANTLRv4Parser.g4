@@ -55,18 +55,83 @@ import java.io.*;
 	static final Map<String, String> lexerVimPatterns = new HashMap<String, String>(); 
 	static final Map<String, String> antlrToVimNames = new HashMap<String, String>(); 
 	static final Set<String> usedVimNames = new HashSet<String>();
-	static String filetype = "ft";
+	static String filetype = null;
+	static String grammarName = null;
+	
+	static final List<String> filenames = new ArrayList<String>();
+	static String highlightFilename = null;
 	
 	public static void main(String[] args) {
+		final String help = "Usage: java ANTLRv4Parser [<options...>] [--] <grammarFilenames>...\n" +
+			"\t-f, --filetype <filetype>\tvim 'filetype' option and output filename (without extension)\n" +
+			"\t-h, --help\tshow this message and exit\n" +
+			"\t-H, --highlight <filename>\tfile with highlighting links\n" +
+			"\t-o, --output <directory>\toutput directory\n" +
+			"\t-\tread grammar from stdin\n" +
+			"\n" +
+			"Highlighting file structure:" +
+			"Two space-separated columns, left is antlr identifier, right is vim standart group or '@' + antlr identifier. If first character of the line is '#', it is treated as comment.";
+		if(args.length == 0) {
+			System.err.println(help);
+		}
+		boolean endOfOptions = false;
+		String outDir = ".";
+		for(int i = 0; i < args.length; i++) {
+			if(!endOfOptions && args[i].length() != 0 && args[i].charAt(0) == '-') {
+				if(args[i].equals("-")) {
+					filenames.add("/dev/stdin"); //TODO: use "con" in Windows
+					continue;
+				}
+				if(args[i].equals("--")) {
+					endOfOptions = true;
+					continue;
+				}
+				int newI = i, j = 1;
+				boolean parsingShortOpts = args[i].charAt(1) != '-';
+				do {
+					if(args[i].equals("--filetype") || parsingShortOpts && args[i].charAt(j) == 'f') {
+						filetype = args[++newI];
+					} else if(args[i].equals("--help") || parsingShortOpts && args[i].charAt(j) == 'h') {
+						System.out.println(help);
+						return;
+					} else if(args[i].equals("--highlight") || parsingShortOpts && args[i].charAt(j) == 'H') {
+						highlightFilename = args[++newI];
+					} else if(args[i].equals("--highlight") || parsingShortOpts && args[i].charAt(j) == 'H') {
+						outDir = args[++newI];
+					} else {
+						System.err.print("Unknown option: '");
+						if(parsingShortOpts) {
+							System.out.print("-" + args[i].charAt(j));
+						} else {
+							System.out.print(args[i]);
+						}
+						System.err.println("'");
+						return;
+					}
+				} while(parsingShortOpts && ++j < args[i].length());
+				i = newI;
+			} else {
+				filenames.add(args[i]);
+			}
+		}
+		if(filenames.size() == 0)
+			filenames.add("/dev/stdin");
 		try {
-			CharStream streamInput = CharStreams.fromFileName("/dev/stdin");
-			TokenSource lexerAntlr = new ANTLRv4Lexer(streamInput);
-			TokenStream flowTokens = new CommonTokenStream(lexerAntlr);
-			ANTLRv4Parser parser = new ANTLRv4Parser(flowTokens);
+			for(String fn: filenames) {
+				CharStream streamInput = CharStreams.fromFileName(fn);
+				TokenSource lexerAntlr = new ANTLRv4Lexer(streamInput);
+				TokenStream flowTokens = new CommonTokenStream(lexerAntlr);
+				ANTLRv4Parser parser = new ANTLRv4Parser(flowTokens);
+				
+				System.err.println("Started parser");
+				
+				parser.grammarSpec();
+			}
 			
-			System.err.println("Started parser");
+			if(filetype == null)
+				filetype = grammarName.toLowerCase();
 			
-			parser.grammarSpec();
+			System.setOut(new PrintStream(new File(outDir, filetype + ".vim")));
 			
 			DependentRegexpResolver resolver = new DependentRegexpResolver(lexerVimPatterns);
 			System.err.println("Started resolver");
@@ -274,7 +339,7 @@ grammarSpec
    ;
 
 grammarDecl
-   : grammarType identifier SEMI
+   : grammarType identifier {grammarName = $identifier.text;} SEMI
    ;
 
 grammarType
