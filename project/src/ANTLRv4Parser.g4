@@ -318,7 +318,7 @@ import java.io.*;
 	
 	public static void setPattern(String ident, String ptn) {
 		lexerVimPatterns.put(ident, ptn);
-		if(currentMode != null) {
+		if(currentMode != null && !fragmentTokens.contains(ident)) {
 			currentMode.lexerRules.add(ident);
 			tokensNotTopMode.add(ident);
 		}
