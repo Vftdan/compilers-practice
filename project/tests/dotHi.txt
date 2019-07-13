@@ -1,0 +1,12 @@
+STRICT Keyword
+GRAPH Keyword
+DIGRAPH Keyword
+NODE Keyword
+EDGE Keyword
+SUBGRAPH Keyword
+STRING Constant
+ID Identifier
+HTML_STRING Constant
+TAG Special
+COMMENT Comment
+LINE_COMMENT Comment
