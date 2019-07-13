@@ -1,3 +1,100 @@
 Программа принимает на вход грамматики с правилами лексера и файл с парами правило ANTLR - стандартная группа подсветки Vim.
 Программа запускается коммандой `java ANTLRv4Parser`. В аргументы коммандной строки необходимо передать список файлов, в которых описана лексика языка. После ключа `-H` можно передать файл с описанием подсветки, после `-o` -- директорию, куда записать выходной файл, после `-f` -- тип файла (название синтаксиса), который также определяет имя выходного файла.
 Файл описания подсветки состоит из 2х столбцов, в левом записаны идентификаторы правил ANTLR, в правом -- имена групп подсветки Vim, от которых они должны унаследовать оформление. Чтобы унаследовать оформление от другого правила ANTLR, необходимо записать его идентификатор с добавленным слева символом `#` во второй столбец. Строки, начинающиеся с символа `#`, пропускаются.
+
+Пример 1
+
+Грамматика:
+
+grammar Hello;
+r : HELLO ID ;
+HELLO : 'hello' ;
+ID : [a-z]+ ;
+WS : [ \t\r\n]+ -> skip ;
+
+Файл подсветки:
+
+ID Identifier
+HELLO Keyword
+
+Полученный файл hello.vim:
+
+syn match helloWS /\v[\ \t\r\n]{1,}/ transparent
+syn match helloID /\v[a-z]{1,}/
+syn match helloHELLO /\vhello/
+
+hi def link helloHELLO Keyword
+hi def link helloID Identifier
+
+Подсветка:
+
+img1
+
+Пример 2
+
+Грамматика: https://github.com/antlr/grammars-v4/tree/master/antlr4
+
+Файл подсветки:
+
+COLON Delimiter
+SEMI Delimiter
+RARROW Operator
+STAR Operator
+PLUS Operator
+QUESTION Operator
+NOT Operator
+OR Operator
+RANGE Operator
+LBRACE Delimiter
+RBRACE Delimiter
+LBrack Delimiter
+RBrack Delimiter
+LParen Delimiter
+RParen Delimiter
+LineComment Comment
+DocComment Comment
+BlockComment Comment
+EscSeq Special
+SQuoteLiteral Constant
+LexerCharSet Constant
+SQuote Delimiter
+Id Identifier
+GRAMMAR Keyword
+FRAGMENT Keyword
+LEXER Keyword
+PARSER Keyword
+RETURNS Keyword
+OPTIONS Keyword
+IMPORT Keyword
+TOKENS Keyword
+MODE Keyword
+CHANNELS Keyword
+
+Подсветка:
+
+img2
+
+Выражения в квадратных скобках подсвечены неправильно, т. к. определены не через грамматические правила.
+
+Пример 3
+
+Грамматика: https://github.com/antlr/grammars-v4/tree/master/dot
+
+Файл подсветки:
+
+STRICT Keyword
+GRAPH Keyword
+DIGRAPH Keyword
+NODE Keyword
+EDGE Keyword
+SUBGRAPH Keyword
+STRING Constant
+ID Identifier
+HTML_STRING Constant
+TAG Special
+COMMENT Comment
+LINE_COMMENT Comment
+
+Подсветка:
+
+img3
